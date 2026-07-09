@@ -1,9 +1,9 @@
 ---
 name: academic-docx-table
-description: Builds publication-quality Word (.docx) regression tables for strategy/management journals (SMJ, JMS, AMJ, ASQ style) using python-docx. Covers SMJ manuscript conventions (double-space body, APA headings, tables at end), standard model progression (M1=controls, M2=IV+controls, M3+=moderator+IV+interaction+controls), compact β/[p]/(SE) cell format, academic top-bottom borders, landscape sections, merged moderator rows, FE as "Yes", and VIF reporting. Use when building or reformatting any regression table or manuscript section in Word.
+description: Builds publication-quality Word (.docx) regression tables for strategy/management journals (SMJ, JMS, AMJ, ASQ style) using python-docx. Covers SMJ manuscript conventions (double-space body, APA headings, tables at end), standard model progression (M1=controls, M2=IV+controls, M3+=moderator+IV+interaction+controls), compact β/[p]/(SE) cell format, academic top-bottom borders, landscape section breaks for wide tables, merged moderator rows, FE as "Yes", VIF reporting, and correlation+descriptive statistics tables (numbered lower-triangle with Mean/SD rows). Use when building or reformatting any regression, correlation, or descriptive statistics table in Word.
 author: Yue Zhao (BG Divestment Project, Jul 2026)
-version: 2.0.0
-argument-hint: "[table_type: main|appendix|iv] [journal: SMJ|JMS|AMJ] [outfile.docx]"
+version: 3.0.0
+argument-hint: "[table_type: main|appendix|iv|corr|desc] [journal: SMJ|JMS|AMJ] [outfile.docx]"
 allowed-tools: ["Read", "Write", "Edit", "Bash"]
 ---
 
@@ -400,3 +400,228 @@ for cell in tbl.rows[-1].cells:
 
 doc.save("OUTPUT.docx")
 ```
+
+---
+
+## PART 3 — Wide Tables: Landscape Section Break + Correlation / Descriptive Statistics
+
+### When to use landscape
+
+Any table with more than ~6 columns (correlation matrices, descriptive stats with many variables) must use landscape orientation with a **section break** that fully isolates it from the portrait main text.
+
+```python
+def insert_landscape_section(doc):
+    """
+    Insert a continuous section break BEFORE the current content, switching to landscape.
+    Call this before adding the table title. Then call insert_portrait_section() after
+    the table to return to portrait.
+    """
+    # Add a paragraph to host the section break
+    p = doc.add_paragraph()
+    pPr = p._p.get_or_add_pPr()
+    sectPr = OxmlElement('w:sectPr')
+    pgSz = OxmlElement('w:pgSz')
+    pgSz.set(qn('w:w'),      '15840')  # 11 inches
+    pgSz.set(qn('w:h'),      '12240')  # 8.5 inches
+    pgSz.set(qn('w:orient'), 'landscape')
+    pgMar = OxmlElement('w:pgMar')
+    pgMar.set(qn('w:top'),    '720')   # 0.5 inch margins — maximize table width
+    pgMar.set(qn('w:right'),  '720')
+    pgMar.set(qn('w:bottom'), '720')
+    pgMar.set(qn('w:left'),   '720')
+    sectPr.append(pgSz)
+    sectPr.append(pgMar)
+    pPr.append(sectPr)
+
+def insert_portrait_section(doc):
+    """Return to portrait after the landscape table."""
+    p = doc.add_paragraph()
+    pPr = p._p.get_or_add_pPr()
+    sectPr = OxmlElement('w:sectPr')
+    pgSz = OxmlElement('w:pgSz')
+    pgSz.set(qn('w:w'), '12240')   # 8.5 inches
+    pgSz.set(qn('w:h'), '15840')   # 11 inches
+    pgMar = OxmlElement('w:pgMar')
+    pgMar.set(qn('w:top'),    '1440')  # standard 1-inch margins
+    pgMar.set(qn('w:right'),  '1440')
+    pgMar.set(qn('w:bottom'), '1440')
+    pgMar.set(qn('w:left'),   '1440')
+    sectPr.append(pgSz)
+    sectPr.append(pgMar)
+    pPr.append(sectPr)
+
+# Usage:
+insert_landscape_section(doc)  # switch to landscape
+# ... add table title and table ...
+insert_portrait_section(doc)   # return to portrait
+```
+
+### Correlation + Descriptive Statistics table format
+
+**Exact format from the screenshot:**
+
+- Title: **"Table 2a."** (bold) + rest of title (normal) — all one paragraph, space_after=0
+- Column headers: "Variables" | (1) | (2) | (3) | ... | (N) — centered, 8pt
+- Variable rows: "(1) Divestiture dummy" | 1.00 | [correlations] — lower triangle only, upper blank
+- Stars: * only (p<0.10 threshold — correlations use this threshold)
+- Bottom rows: "Mean" and "SD" — same table, no separator
+- Note: italic, 8pt, below table: "Note: Obs. = N,NNN. *** p<0.01, ** p<0.05, * p<0.1."
+- Font: 8pt throughout (to fit 16 columns on landscape page)
+- Table width: AUTO-fit to page (use `tbl.style = 'Table Grid'` then clear borders)
+
+```python
+import numpy as np
+from scipy import stats
+
+def make_corr_desc_table(doc, df, var_names, var_labels, title, note_obs):
+    """
+    Build a correlation + descriptive statistics table.
+    
+    Args:
+        df:          pandas DataFrame with data
+        var_names:   list of column names in df (in order)
+        var_labels:  list of display labels (same order)
+        title:       e.g. "Table 2a. Descriptive statistics and correlation table (DV: divestiture dummy)"
+        note_obs:    e.g. "11,368"
+    """
+    n_vars = len(var_names)
+
+    # --- Compute correlations and p-values ---
+    corr_matrix = np.zeros((n_vars, n_vars))
+    pval_matrix = np.ones((n_vars, n_vars))
+    for i in range(n_vars):
+        for j in range(n_vars):
+            if i == j:
+                corr_matrix[i, j] = 1.0
+                pval_matrix[i, j] = 0.0
+            elif i > j:
+                r, p = stats.pearsonr(df[var_names[i]].dropna(), df[var_names[j]].dropna())
+                corr_matrix[i, j] = r
+                pval_matrix[i, j] = p
+
+    means = [df[v].mean() for v in var_names]
+    sds   = [df[v].std()  for v in var_names]
+
+    # --- Table title (bold number + normal text, no gap before table) ---
+    p_title = doc.add_paragraph()
+    p_title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    # Split "Table 2a." from the rest
+    bold_part, rest = title.split('. ', 1) if '. ' in title else (title, '')
+    r1 = p_title.add_run(bold_part + '. ')
+    r1.bold = True
+    r1.font.size = Pt(10)
+    if rest:
+        r2 = p_title.add_run(rest)
+        r2.bold = False
+        r2.font.size = Pt(10)
+    p_title.paragraph_format.space_after  = Pt(0)   # title glues to table
+    p_title.paragraph_format.space_before = Pt(0)
+    p_title.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+
+    # --- Table: n_vars rows + Mean + SD, cols = label + n_vars numbers ---
+    n_rows = n_vars + 2   # +2 for Mean, SD
+    n_cols = 1 + n_vars
+    tbl = doc.add_table(rows=n_rows + 1, cols=n_cols)  # +1 for header
+    tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
+    clear_table_borders(tbl)
+
+    FONT_SIZE = Pt(8)
+
+    def cell_text(cell, text, bold=False, italic=False, align=WD_ALIGN_PARAGRAPH.CENTER):
+        cell.text = ''
+        p = cell.add_paragraph()
+        p.alignment = align
+        r = p.add_run(text)
+        r.font.size = FONT_SIZE
+        r.bold   = bold
+        r.italic = italic
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after  = Pt(0)
+        p.paragraph_format.line_spacing = Pt(9)
+
+    # Header row
+    hdr = tbl.rows[0]
+    cell_text(hdr.cells[0], 'Variables', bold=False, align=WD_ALIGN_PARAGRAPH.LEFT)
+    for j in range(n_vars):
+        cell_text(hdr.cells[j + 1], f'({j+1})')
+
+    # Variable rows — lower triangle only
+    def fmt_corr(r, p):
+        stars = '***' if p < 0.01 else '**' if p < 0.05 else '*' if p < 0.10 else ''
+        return f'{r:.2f}{stars}'
+
+    for i in range(n_vars):
+        row = tbl.rows[i + 1]
+        cell_text(row.cells[0], f'({i+1}) {var_labels[i]}', align=WD_ALIGN_PARAGRAPH.LEFT)
+        for j in range(n_vars):
+            if j > i:
+                cell_text(row.cells[j + 1], '')          # upper triangle blank
+            elif j == i:
+                cell_text(row.cells[j + 1], '1.00')      # diagonal
+            else:
+                val = fmt_corr(corr_matrix[i, j], pval_matrix[i, j])
+                cell_text(row.cells[j + 1], val)
+
+    # Mean row
+    mean_row = tbl.rows[n_vars + 1]
+    cell_text(mean_row.cells[0], 'Mean', align=WD_ALIGN_PARAGRAPH.LEFT)
+    for j in range(n_vars):
+        cell_text(mean_row.cells[j + 1], f'{means[j]:.2f}')
+
+    # SD row
+    sd_row = tbl.rows[n_vars + 2]
+    cell_text(sd_row.cells[0], 'SD', align=WD_ALIGN_PARAGRAPH.LEFT)
+    for j in range(n_vars):
+        cell_text(sd_row.cells[j + 1], f'{sds[j]:.2f}')
+
+    # Borders
+    for cell in tbl.rows[0].cells:
+        set_cell_border(cell, top={'sz':12,'val':'single'}, bottom={'sz':4,'val':'single'})
+    for cell in tbl.rows[-1].cells:
+        set_cell_border(cell, bottom={'sz':12,'val':'single'})
+
+    # Note below table
+    p_note = doc.add_paragraph()
+    r_note = p_note.add_run(f'Note: Obs. = {note_obs}. *** p<0.01, ** p<0.05, * p<0.1.')
+    r_note.italic = True
+    r_note.font.size = Pt(8)
+    p_note.paragraph_format.space_before = Pt(2)
+    p_note.paragraph_format.space_after  = Pt(0)
+    p_note.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+```
+
+### Full workflow for a wide correlation table
+
+```python
+# In your make_tables.py script:
+
+# 1. Switch to landscape (isolates from portrait body)
+insert_landscape_section(doc)
+
+# 2. Build Table 2a (binary DV sample)
+make_corr_desc_table(
+    doc, df_binary, var_names, var_labels,
+    title="Table 2a. Descriptive statistics and correlation table (DV: divestiture dummy)",
+    note_obs="11,368"
+)
+
+doc.add_page_break()
+
+# 3. Build Table 2b (count DV sample) — same landscape section
+make_corr_desc_table(
+    doc, df_count, var_names_count, var_labels_count,
+    title="Table 2b. Descriptive statistics and correlation table (DV: count of divestitures)",
+    note_obs="12,085"
+)
+
+# 4. Return to portrait for the next section
+insert_portrait_section(doc)
+```
+
+### Key sizing rules to fit 16 columns on one page
+
+- Font: **8pt** throughout (header + data + Mean/SD)
+- Line spacing: **9pt** (tighter than standard)
+- Margins: **0.5 inch** on all sides in landscape (set in `insert_landscape_section`)
+- Column width: let Word auto-fit — do NOT set manual column widths for correlation tables
+- If still overflowing: reduce font to 7.5pt and line spacing to 8pt
