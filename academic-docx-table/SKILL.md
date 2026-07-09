@@ -1,15 +1,143 @@
 ---
 name: academic-docx-table
-description: Builds publication-quality Word (.docx) regression tables for strategy/management journals (JMS, AMJ, ASQ style) using python-docx. Covers compact β/[p]/(SE) cell format, academic top-bottom borders, landscape sections, merged moderator rows, control variable separators, and single-spaced appendix layout. Use when building or reformatting any regression table in Word.
+description: Builds publication-quality Word (.docx) regression tables for strategy/management journals (SMJ, JMS, AMJ, ASQ style) using python-docx. Covers SMJ manuscript conventions (double-space body, APA headings, tables at end), standard model progression (M1=controls, M2=IV+controls, M3+=moderator+IV+interaction+controls), compact β/[p]/(SE) cell format, academic top-bottom borders, landscape sections, merged moderator rows, FE as "Yes", and VIF reporting. Use when building or reformatting any regression table or manuscript section in Word.
 author: Yue Zhao (BG Divestment Project, Jul 2026)
-version: 1.0.0
-argument-hint: "[table_type: main|appendix|iv] [outfile.docx]"
+version: 2.0.0
+argument-hint: "[table_type: main|appendix|iv] [journal: SMJ|JMS|AMJ] [outfile.docx]"
 allowed-tools: ["Read", "Write", "Edit", "Bash"]
 ---
 
-# `/academic-docx-table` — Publication-Quality Word Regression Tables
+# `/academic-docx-table` — Publication-Quality Word Regression Tables (SMJ/JMS/AMJ)
 
 Encodes the full Word table formatting convention refined over many iterations for the BG Divestment project. Applies to Table 2 (main), TABLE A1–A4 (appendix), and any future regression output tables.
+
+---
+
+## PART 1 — SMJ Manuscript Formatting Conventions
+
+### Document-level: double-space body text, Times New Roman 12pt
+
+```python
+style = doc.styles['Normal']
+style.font.name = 'Times New Roman'
+style.font.size = Pt(12)
+style.paragraph_format.line_spacing_rule = WD_LINE_SPACING.DOUBLE
+style.paragraph_format.space_after = Pt(0)
+```
+
+Section headings follow APA level hierarchy:
+- **Level 1** (Method, Results, Discussion): centered, bold, Title Case
+- **Level 2** (Sample, Measures, etc.): left-aligned, bold, Title Case
+- **Level 3** (sub-sections): left-aligned, bold italic, Title Case, period, run-in text
+
+```python
+def heading1(doc, text):
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p.add_run(text)
+    r.bold = True
+    r.font.size = Pt(12)
+    p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.DOUBLE
+
+def heading2(doc, text):
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    r = p.add_run(text)
+    r.bold = True
+    r.font.size = Pt(12)
+    p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.DOUBLE
+
+def heading3(doc, text):
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    r = p.add_run(text + ".")
+    r.bold = True
+    r.italic = True
+    r.font.size = Pt(12)
+    p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.DOUBLE
+```
+
+### Tables go at the END of the manuscript (after references)
+
+SMJ and most top management journals require all tables and figures at the end, each on its own page, after the reference list. Order: References → Tables (in order) → Figures (in order).
+
+Structure of each table page:
+1. Page break
+2. Table title — immediately above the table, NO blank line between title and table
+3. The table itself
+4. Table notes below the table
+
+```python
+# Each table starts on a new page
+doc.add_page_break()
+
+# Title flush to table — no blank paragraph between them
+p = doc.add_paragraph()
+p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+r = p.add_run("Table 2. ")
+r.bold = True
+r.font.size = Pt(12)
+r2 = p.add_run("Logistic Regression Results Predicting Divestiture")
+r2.bold = False
+r2.font.size = Pt(12)
+p.paragraph_format.space_after = Pt(0)   # NO gap before table
+p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+
+# Table immediately follows — no vsp(), no add_paragraph()
+tbl = doc.add_table(...)
+```
+
+Title format: **"Table N."** (bold) + title text (not bold), on one line. No period after the title. Sentence case for the title text.
+
+---
+
+## PART 2 — Standard Model Progression
+
+Every regression table follows this fixed column structure:
+
+| Column | Label | Contents |
+|--------|-------|----------|
+| M1 | Model 1 | **Controls only** — no focal IV, no moderators, no interactions |
+| M2 | Model 2 | **Focal IV + all controls** — tests H1 (main effect) |
+| M3 | Model 3 | **Moderator 1 + IV + Interaction 1 + all controls** — tests H2 |
+| M4 | Model 4 | **Moderator 2 + IV + Interaction 2 + all controls** — tests H3 |
+| M5 | Model 5 | **Moderator 3 + IV + Interaction 3 + all controls** — tests H4 |
+
+Rules:
+- Each model adds ONE new moderator + its interaction. Do NOT include previous moderators (to avoid collinearity confounds in reporting).
+- Variables that are moderators in one model appear as controls (using their control-variable Stata name) in other models — use the **merged row** pattern (Part 3 below) to show them only once per row.
+- M1 is always the baseline. Report it even if nothing is significant.
+
+### Fixed effects: report as "Yes" / "—"
+
+Never report year FE or industry FE coefficients. Instead, add footer rows:
+
+```python
+FOOTER = [
+    ("Observations",        ["11,322", "11,322", "11,322", "11,322", "11,322"]),
+    ("Year fixed effects",  ["Yes",    "Yes",    "Yes",    "Yes",    "Yes"   ]),
+    ("Industry fixed effects",["Yes",  "Yes",    "Yes",    "Yes",    "Yes"   ]),
+    ("Log-likelihood",      ["-2341",  "-2298",  "-2287",  "-2301",  "-2284" ]),
+]
+# M1 has no IV, so Pseudo R² or LL should increase monotonically through M2–M5
+```
+
+### VIF reporting
+
+Report VIF for ONE model only — the most complete model (e.g., M5), **without** year FE and industry FE (adding FE inflates VIF artificially).
+
+```stata
+* In Stata — run the full model without FEs, then vif
+reg depvar iv moderator interaction controls   // no i.year i.nic_two
+estat vif
+* Report: mean VIF < 10 (ideally < 5). If any single VIF > 10, flag it.
+```
+
+In the paper text (not a table): "Mean VIF = X.XX (max = X.XX), well below the threshold of 10, indicating no multicollinearity concern."
+
+No separate VIF table needed unless a reviewer explicitly requests one.
+
+---
 
 ## Cell format: compact 3-paragraph style
 
