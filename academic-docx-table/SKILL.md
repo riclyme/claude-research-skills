@@ -625,3 +625,162 @@ insert_portrait_section(doc)
 - Margins: **0.5 inch** on all sides in landscape (set in `insert_landscape_section`)
 - Column width: let Word auto-fit — do NOT set manual column widths for correlation tables
 - If still overflowing: reduce font to 7.5pt and line spacing to 8pt
+
+---
+
+## PART 4 — Inline Statistical Reporting: Italic Notation + Subscripts
+
+### The format (from screenshot)
+
+```
+(β = 0.04; RSE = 0.02; p = 0.01).
+```
+
+Rules (APA 7th edition, SMJ convention):
+- **Italic**: Greek letters (β, α, γ), and single-letter roman statistics (p, t, F, r, z, N when = sample size used as a variable)
+- **Roman (not italic)**: multi-letter abbreviations (RSE, SE, SD, VIF, IRR), numbers, equals signs, semicolons, parentheses
+- **Subscripts**: automatic small sizing via `font.subscript = True` — e.g., β₁, χ²(df)
+- Separator: semicolons (`;`), not commas
+- Whole expression in parentheses; period goes AFTER the closing parenthesis (outside)
+
+### Unicode Greek letters (copy-paste ready)
+
+| Symbol | Unicode | Usage |
+|--------|---------|-------|
+| β | `β` | regression coefficient |
+| α | `α` | significance level / Cronbach's alpha |
+| γ | `γ` | coefficient in structural models |
+| χ | `χ` | chi-square (write χ²) |
+| σ | `σ` | standard deviation (in formulas) |
+| μ | `μ` | population mean (in formulas) |
+| Δ | `Δ` | delta / change |
+
+### python-docx helper: `inline_stat()`
+
+Appends a formatted inline stat report to an existing paragraph.
+
+```python
+def inline_stat(para, stats_list, terminal_period=True):
+    """
+    Append a formatted inline stat report to `para`.
+
+    Args:
+        para:        a docx Paragraph object (already has preceding text)
+        stats_list:  list of (symbol, value, italic_symbol) tuples, e.g.:
+                     [('β', '0.04', True),   # β = 0.04
+                      ('RSE',    '0.02', False),   # RSE = 0.02
+                      ('p',      '0.01', True)]    # p = 0.01
+        terminal_period: add period after closing parenthesis (default True)
+
+    Example output appended to para:  (β = 0.04; RSE = 0.02; p = 0.01).
+    """
+    STAT_SIZE = Pt(11)   # match surrounding body text size
+
+    def run(text, italic=False, subscript=False, superscript=False):
+        r = para.add_run(text)
+        r.italic      = italic
+        r.font.size   = STAT_SIZE
+        if subscript:
+            r.font.subscript   = True
+        if superscript:
+            r.font.superscript = True
+        return r
+
+    run(' (')
+    for i, (symbol, value, is_italic) in enumerate(stats_list):
+        if i > 0:
+            run('; ')
+        run(symbol, italic=is_italic)
+        run(' = ')
+        run(value, italic=False)
+    run(')')
+    if terminal_period:
+        run('.')
+
+
+# ── Usage examples ──────────────────────────────────────────────────────────────
+
+# Basic: (β = 0.04; RSE = 0.02; p = 0.01).
+p = doc.add_paragraph('Board centrality is positively related to divestiture')
+inline_stat(p, [
+    ('β', '0.04', True),
+    ('RSE',    '0.02', False),
+    ('p',      '0.01', True),
+])
+
+# With chi-square and df subscript:
+# χ²(1) = 0.023, p = 0.879
+p2 = doc.add_paragraph('Wu-Hausman endogeneity test: ')
+run_chi = p2.add_run('χ')
+run_chi.italic = True
+run_chi.font.size = Pt(11)
+run_sup = p2.add_run('2')
+run_sup.font.superscript = True
+run_sup.font.size = Pt(9)
+run_df = p2.add_run('(1)')
+run_df.font.size = Pt(11)
+inline_stat(p2, [
+    ('',  '0.023', False),   # value only after the χ²(1)
+    ('p', '0.879', True),
+], terminal_period=False)
+```
+
+### Subscript and superscript rules
+
+```python
+# Subscript: β₁  →  β + subscript "1"
+r_beta = para.add_run('β')
+r_beta.italic = True
+r_sub = para.add_run('1')
+r_sub.font.subscript = True
+r_sub.font.size = Pt(8)   # slightly smaller than body
+
+# Superscript: χ²  →  χ + superscript "2"
+r_chi = para.add_run('χ')
+r_chi.italic = True
+r_sup = para.add_run('2')
+r_sup.font.superscript = True
+r_sup.font.size = Pt(8)
+
+# Degrees of freedom in parentheses after superscript: F(2, 11989)
+# Write as plain text — no sub/superscript needed
+para.add_run('F(2, 11989) = 111.96')
+# Then italicize the F only:
+r_F = para.add_run('F')
+r_F.italic = True
+para.add_run('(2, 11989) = 111.96')
+```
+
+### Standard inline reporting phrases (copy templates)
+
+```python
+# Logit coefficient in body text
+"Board centrality significantly increases divestiture likelihood"
+inline_stat(p, [('β','0.043',True), ('SE','0.018',False), ('p','0.017',True)])
+
+# NBreg IRR in body text  
+"The incidence rate ratio is 1.08"
+inline_stat(p, [('IRR','1.08',False), ('p','0.003',True)])
+
+# IV first-stage F-stat
+"The instruments are jointly significant"
+inline_stat(p, [('F','111.96',True), ('p','<0.001',True)])
+
+# Endogeneity test
+"The Wu-Hausman test is consistent with exogeneity"
+# write χ²(1) manually (see above), then:
+inline_stat(p, [('p','0.879',True)], terminal_period=True)
+```
+
+### What NOT to italicize (common mistakes)
+
+| Wrong | Right | Reason |
+|-------|-------|--------|
+| *SE* | SE | Multi-letter abbreviation → roman |
+| *RSE* | RSE | Multi-letter abbreviation → roman |
+| *VIF* | VIF | Abbreviation → roman |
+| *IRR* | IRR | Abbreviation → roman |
+| *SD* | SD | Abbreviation → roman |
+| *df* | *df* | Exception: df IS italic in APA 7 |
+| β (roman) | *β* | Greek letters always italic |
+| p (roman) | *p* | Single roman letter → italic |
