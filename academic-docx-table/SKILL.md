@@ -784,3 +784,50 @@ inline_stat(p, [('p','0.879',True)], terminal_period=True)
 | *df* | *df* | Exception: df IS italic in APA 7 |
 | β (roman) | *β* | Greek letters always italic |
 | p (roman) | *p* | Single roman letter → italic |
+
+---
+
+## PART 5 — Appendix Reporting Rule: Always Full Model, Never Summarized
+
+**Rule**: Every robustness check table in the appendix must report the **complete model** — every variable, every coefficient, SE, and p-value. Never abbreviate with notes like "controls included" or show only the focal variable row.
+
+This matches the same compact β/[p]/(SE) format used in the main text Table 2.
+
+### What full model means
+
+Every appendix table must include ALL of:
+- Focal IV (e.g., board centrality)
+- Moderators + interaction terms (where applicable)
+- All control variables (firm-level, BG-level, industry-level)
+- Fixed effects footer rows ("Year fixed effects: Yes", "Industry fixed effects: Yes")
+- N, log-likelihood or pseudo-R², and any model-specific fit stats
+
+### What is NOT allowed
+
+```
+# WRONG — never do this in appendix tables:
+"Board centrality   0.043***"
+"Controls           Included"   ← not acceptable
+"Fixed effects      Yes"
+```
+
+```
+# WRONG — never summarize:
+"Results are consistent with Table 2. Full results available upon request."
+```
+
+### Why
+
+Reviewers at SMJ/JMS/AMJ routinely check appendix robustness tables in detail. A summarized appendix signals that the author is hiding something or didn't actually run the full model. Full reporting also allows readers to check multicollinearity, sign reversals in controls, and sample size differences across specifications.
+
+### Applies to all appendix table types
+
+- NBreg / Poisson count model robustness (TABLE A1)
+- Alternative IV specifications (TABLE A3 first-stage, TABLE A4 IV-probit)
+- Alternative DV definitions
+- Subsample splits
+- Any other robustness check
+
+### Code reminder
+
+Use the same `ROWS` list structure as the main table — including all control variables — and the same `ct()` / `ct_label()` cell functions. Do not create a shorter ROWS list for appendix tables.
