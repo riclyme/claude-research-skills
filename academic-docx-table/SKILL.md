@@ -831,3 +831,196 @@ Reviewers at SMJ/JMS/AMJ routinely check appendix robustness tables in detail. A
 ### Code reminder
 
 Use the same `ROWS` list structure as the main table — including all control variables — and the same `ct()` / `ct_label()` cell functions. Do not create a shorter ROWS list for appendix tables.
+
+---
+
+## PART 6 — Manuscript Structure & Section-by-Section Writing Conventions
+
+The full-manuscript skeleton for SMJ/JMS/AMJ empirical papers. Section order, required elements per section, and phrasing templates. Use this whenever drafting or restructuring a manuscript in Word.
+
+### Page 1: Title Page
+
+- Paper title: **centered, ALL CAPS, bold**
+- Then "**ABSTRACT**" centered, bold
+- Abstract body: double-spaced, no first-line indent, ~150–250 words
+- "**Keywords:**" (bold) followed by 4–6 terms, lowercase, comma-separated
+- Page break before the Introduction
+
+```python
+# Title page
+p = doc.add_paragraph()
+p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+r = p.add_run("WHEN DO BUSINESS GROUP AFFILIATES DIVEST?")
+r.bold = True
+
+heading1(doc, "ABSTRACT")
+
+p_abs = doc.add_paragraph("This study examines ...")   # 150-250 words, no indent
+p_abs.paragraph_format.first_line_indent = None
+
+p_kw = doc.add_paragraph()
+r_kw = p_kw.add_run("Keywords: ")
+r_kw.bold = True
+p_kw.add_run("business groups, divestiture, board interlocks, emerging markets")
+
+doc.add_page_break()
+```
+
+### Introduction (2–3 pages)
+
+Must contain these elements **in order**:
+
+| # | Element | What it does |
+|---|---------|--------------|
+| 1 | Phenomenon / motivation | Open with an empirical fact or real-world observation that establishes why the topic matters (1–2 paragraphs) |
+| 2 | Gap statement | What the existing literature has and has not explained |
+| 3 | Research question | One explicit, clearly stated question |
+| 4 | Theoretical framework preview | Name the theoretical lens(es) used and how they are combined/extended |
+| 5 | Conceptual framework figure | Reference "Figure 1" (the conceptual model) here |
+| 6 | Three contributions | Structured list, theoretical contribution first |
+
+Details:
+
+1. **Phenomenon/motivation** — Open with an empirical fact or real-world observation, not with theory. Establish why the topic matters before citing anyone.
+2. **Gap statement** — Use language like "However, little is known about..." or "Prior work has focused on X, yet Y remains unexplored."
+3. **Research question** — One explicit sentence, e.g., "We ask: when do business group affiliates divest?" Do not bury it or leave it implicit.
+4. **Theoretical framework preview** — Name the lens(es) (e.g., resource dependence + internal capital markets) and state how they are combined or extended.
+5. **Conceptual framework figure** — "Figure 1" is *always* the conceptual model: focal IV → DV, with moderating arrows for each hypothesis. It is referenced in the Introduction but physically placed at the end of the manuscript (see end-of-manuscript order below).
+6. **Three contributions** — a structured list, each 2–4 sentences:
+   1. **Theoretical contribution** — always first and most important
+   2. **Empirical/methodological contribution**
+   3. **Managerial or contextual contribution**
+
+### Theoretical Background & Hypotheses Development
+
+- **Background section first**: elaborate the theoretical building blocks before presenting any hypothesis. Do NOT state hypotheses inside the background section — build the logic first, then predict.
+- **Each hypothesis gets its own subsection** (Level 2 or 3 heading), with the argumentation leading into the formal statement.
+
+Hypothesis statement format:
+
+```
+Hypothesis 1 (H1): [Full statement of prediction, direction, and mechanism].
+```
+
+Rules:
+- One sentence, complete, **directional** (positive/negative/stronger/weaker)
+- Bold the "**Hypothesis 1 (H1):**" label; the statement itself is typically italic
+- State the **mechanism**, not just the correlation ("X increases Y *because* Z")
+- Moderation hypotheses use the standard template: "The positive relationship between X and Y is stronger (weaker) when Z is higher (lower)"
+
+```python
+def hypothesis(doc, label, statement):
+    """e.g., hypothesis(doc, 'Hypothesis 1 (H1):', 'Board centrality increases ...')"""
+    p = doc.add_paragraph()
+    p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.DOUBLE
+    r1 = p.add_run(label + " ")
+    r1.bold = True
+    r2 = p.add_run(statement)
+    r2.italic = True
+```
+
+### Method
+
+Four subsections, in this order:
+
+1. **Sample and Data** — describe the population, years covered, country/context, data sources, selection criteria, and final N.
+2. **Variables** — strict ordering: DV first, then focal IV, then moderators, then controls. For **every** control variable, state (a) what it measures and (b) **why** it is included — what confound it addresses. Never list controls without justification.
+3. **Econometric Modeling** — justify the estimator choice (why logit/probit/NBreg/RE, not just "we use logit"). Discuss panel structure, clustering of standard errors, and the fixed-effects strategy.
+4. **Endogeneity** — briefly flag the endogeneity concern and point to the Appendix for IV robustness results.
+
+### Results
+
+- Report models **in sequence** (M1 → M2 → M3 …), narrating what each addition does ("Model 2 adds the focal IV to the baseline controls...").
+- For **every** significant result, state direction + rough magnitude. Never write just "significant."
+- Explain significant **controls** too — if firm size is significant, note what that implies.
+- For moderation hypotheses, always supplement the coefficient with either:
+  - (a) marginal effects across the full moderator range (Zelner-plot style), or
+  - (b) predicted probabilities at ±1 SD of the moderator.
+
+  State which you used and why.
+- Reference the figure for moderation: "As shown in Figure 2, the marginal effect of X on Pr(Y) is positive and increases with Z."
+
+### Robustness Checks & Endogeneity (in Results section; tables in Appendix)
+
+- Main text carries only a brief paragraph: "We conducted several robustness checks. Results are reported in the Online Appendix."
+- **Name each check** in that paragraph: alternative DV, alternative estimator (e.g., NBreg), alternative sample, lagged IV, IV/2SLS.
+- Each robustness table goes in the Online Appendix as a **separate file** — never truncated, always the full model (see Part 5).
+- Endogeneity: Wu-Hausman test + IV-probit. Report in text as:
+
+  > "The Wu-Hausman test is consistent with exogeneity (χ²(1) = X.XX, *p* = X.XX). IV-probit results (TABLE A4) are directionally consistent with our main findings."
+
+  (Format the χ² and *p* per Part 4 inline-stat conventions.)
+
+### Discussion
+
+Two subsections:
+
+**First subsection — Interpretation of Results** (this is most of the Discussion):
+- Interpret each hypothesis result in plain language — **no coefficients, no p-values**
+- Use language like "Consistent with H1, we find that..." or "Contrary to H2, the data suggest..."
+- Elaborate on **why** the pattern makes sense given the theory — add nuance beyond what the Introduction already said
+- Address any surprising null or unexpected results head-on; do not skip them
+
+**Second subsection — Managerial Implications**:
+- Answer: how can a practicing manager use this paper's insights?
+- Be concrete: "Our findings suggest that group headquarters should prioritize..."
+- Avoid generic statements like "managers should pay attention to X"
+
+### Conclusion
+
+- Short — 1 page maximum
+- Restate the research question and give a one-sentence answer
+- Brief reminder of the main finding — **no new content**
+- Do NOT introduce new theory or claims here
+
+### Future Research (within or after the Conclusion)
+
+Frame limitations as future research opportunities. The pattern:
+
+> "Due to [data/context/scope limitation], we cannot speak to [X]. Future research could..."
+
+Rules:
+- Emphasize that limitations are acceptable **within this setting** — don't oversell the limitation
+- 3–5 forward-looking suggestions
+
+### References
+
+- **APA 7th edition** format
+- Alphabetical by first author's last name
+- All in-text citations: (Author, Year) or Author (Year) — **no footnotes for citations**
+- Journal names spelled out in full (never abbreviated: "Strategic Management Journal", not "SMJ" or "Strateg. Manag. J.")
+
+### End-of-manuscript order (strict)
+
+```
+References
+[page break]
+Table 1. [first table]
+[page break]
+Table 2. [second table]
+...
+[page break]
+Figure 1. Conceptual Framework
+[page break]
+Figure 2. [next figure]
+...
+```
+
+Every table and figure on its own page (page break between each — see Part 1). All tables come before all figures. Figure 1 is always the conceptual framework referenced in the Introduction.
+
+### Quick-reference: full section skeleton
+
+| Order | Section | Key rule |
+|-------|---------|----------|
+| 1 | Title page (title + abstract + keywords) | ALL-CAPS bold title; 150–250-word abstract; page break after |
+| 2 | Introduction | 6 elements in order; ends with three contributions |
+| 3 | Theoretical Background | Building blocks only — no hypotheses here |
+| 4 | Hypotheses Development | One subsection per hypothesis; bold label, directional statement, mechanism |
+| 5 | Method | Sample and Data → Variables → Econometric Modeling → Endogeneity |
+| 6 | Results | M1→M5 narration; direction + magnitude; moderation figures |
+| 7 | Robustness (in Results) | Brief paragraph in text; full tables in Online Appendix |
+| 8 | Discussion | Interpretation (no stats) → Managerial Implications |
+| 9 | Conclusion | ≤1 page; restate RQ + answer; nothing new |
+| 10 | Future Research | Limitations reframed as opportunities; 3–5 suggestions |
+| 11 | References | APA 7; alphabetical; full journal names |
+| 12 | Tables, then Figures | One per page; Figure 1 = conceptual framework |
