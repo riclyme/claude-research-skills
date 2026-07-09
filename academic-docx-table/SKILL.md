@@ -1221,3 +1221,106 @@ Language models (including Claude) can confabulate plausible-sounding citations 
 - Any citation where I provide a DOI — DOIs can be fabricated too
 
 When in doubt: remove the citation rather than risk a fabricated reference.
+
+---
+
+## PART 8 — Prose Style Rules & In-Text Table/Figure Placeholders
+
+### Writing style rules (anti-AI-voice)
+
+These patterns are characteristic of AI-generated academic text. Avoid all of them.
+
+#### Banned punctuation: the em-dash as a comma substitute
+
+Never use an em-dash (—) to replace a comma, colon, or parenthetical. It reads as AI-generated and is stylistically wrong in academic prose.
+
+```
+WRONG:  "Business groups—complex organizational structures—present unique challenges."
+RIGHT:  "Business groups, which are complex organizational structures, present unique challenges."
+
+WRONG:  "The result holds—suggesting that network position matters."
+RIGHT:  "The result holds, suggesting that network position matters."
+```
+
+Em-dashes are acceptable only for a true interruption or abrupt break, which almost never occurs in academic writing.
+
+#### Banned words and phrases (AI clichés)
+
+| Banned | Why | Replace with |
+|--------|-----|--------------|
+| pivot | Overused AI word | shift, turn, redirect, move |
+| delve | AI hallmark | examine, investigate, explore |
+| nuanced | Often empty | be specific about what varies and how |
+| multifaceted | Empty intensifier | describe the actual dimensions |
+| it is worth noting that | Filler | just say the thing |
+| importantly | Overused hedge | delete or restructure sentence |
+| robust (outside statistics) | Vague | specify what held up and under what conditions |
+| leverage (as verb) | Jargon creep | use, draw on, apply |
+
+#### Substance over length
+
+Every sentence must carry information. If removing a sentence loses no meaning, remove it.
+
+```
+WRONG (verbose, empty):
+"This finding is particularly significant in that it highlights the important role
+that network position plays in shaping the divestiture decisions of affiliated firms
+within the broader context of business group governance structures."
+
+RIGHT (same content, 1/3 the words):
+"Network position shapes affiliate divestiture decisions within business groups."
+```
+
+Test: after writing a paragraph, ask "what is the one thing this paragraph says?" 
+If you cannot answer in one sentence, the paragraph needs cutting.
+
+#### Pronoun: always "we", never "I"
+
+Even single-authored papers use "we" in management journals. "I" is not used.
+
+```
+WRONG:  "I argue that..."  /  "In this paper, I examine..."
+RIGHT:  "We argue that..."  /  "In this paper, we examine..."
+```
+
+---
+
+### In-text table and figure placeholders
+
+Tables and figures are placed at the end of the manuscript (Part 1), but you must insert a centered placeholder in the body text at the point where the table/figure should appear when typeset.
+
+**Format**: centered, bracketed, ALL CAPS, double-spaced (matching surrounding text).
+
+```
+[INSERT TABLE 2 HERE]
+
+[INSERT FIGURE 1 HERE]
+```
+
+```python
+def insert_placeholder(doc, label):
+    """
+    Insert a centered [INSERT TABLE N HERE] or [INSERT FIGURE N HERE] placeholder.
+    Matches the double-spacing of surrounding body text.
+    """
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p.add_run(f"[INSERT {label.upper()} HERE]")
+    r.font.size = Pt(12)
+    # Keep double spacing — matches surrounding body text
+    p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.DOUBLE
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after  = Pt(0)
+
+# Usage — place immediately after the sentence that introduces the table/figure:
+# "Table 2 reports the results of our main analysis."
+insert_placeholder(doc, "Table 2")
+# Then continue body text normally.
+```
+
+**Placement rule**: the placeholder goes on its own line, immediately after the sentence introducing the table/figure — not at the start of a section, not floating in the middle of a paragraph.
+
+```
+WRONG: placeholder at top of Results section before any text
+RIGHT: "...as shown in Table 2."  [INSERT TABLE 2 HERE]  "Model 1 is the baseline..."
+```
