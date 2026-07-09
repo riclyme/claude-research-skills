@@ -1070,3 +1070,154 @@ Every table and figure on its own page (page break between each — see Part 1).
 | 10 | Future Research | Limitations reframed as opportunities; 3–5 suggestions |
 | 11 | References | APA 7; alphabetical; full journal names |
 | 12 | Tables, then Figures | One per page; Figure 1 = conceptual framework |
+
+---
+
+## PART 7 — In-Text Citations, References, and Post-Writing Citation Audit
+
+### In-text citation rules
+
+**Target**: at least one citation per argumentative sentence. Every factual claim, theoretical proposition, or empirical assertion needs a source. If you genuinely cannot find a citation for a claim, you may leave it uncited — but this should be rare, not the default.
+
+#### Citation priority order (apply in sequence)
+
+1. **Target journal's own papers** — if submitting to SMJ, prefer SMJ citations; if AMJ, prefer AMJ. Editors notice when their journal is absent from the reference list.
+2. **Classic / foundational theory papers** — the original source for any theoretical lens you invoke (e.g., Hambrick & Mason 1984 for upper echelons; Ocasio 1997 for attention-based view; Kogut & Zander 1992 for knowledge-based view). Always cite the original, not a summary.
+3. **Most recent publications** — for empirical claims, prefer the last 3–5 years. Shows you know the current frontier.
+4. **High-impact outlets** — AMJ, ASQ, SMJ, Org Science, Strat Mgmt J, JMS, JIBS, Management Science, Academy of Management Review.
+
+#### Citation format (APA 7, in-text)
+
+```
+One author:       (Ocasio, 1997)
+Two authors:      (Khanna & Palepu, 2000)
+Three or more:    (Carney et al., 2011)
+Author as subject: Ocasio (1997) argues that...
+Multiple sources:  (Hoskisson et al., 2005; Leff, 1978; Morck et al., 2005)
+                   — alphabetical by first author inside the parenthesis
+```
+
+#### What must be cited
+
+| Must cite | Example claim |
+|-----------|---------------|
+| Theoretical propositions | "Attention is a scarce resource" |
+| Empirical regularities | "Business groups are prevalent in emerging economies" |
+| Variable operationalizations | "We measure board centrality using eigenvector centrality, following X" |
+| Methodological choices | "We use random-effects logit, consistent with Y" |
+| Any named effect or construct | "The internal capital market effect (Z)" |
+
+#### What does NOT need a citation
+
+- Mathematical definitions
+- Descriptions of your own data or sample
+- Results you are reporting from your own analysis
+- Common knowledge in the field (e.g., "India is an emerging economy")
+
+---
+
+### Reference list rules (APA 7)
+
+- Alphabetical by first author's last name
+- All authors listed (no "et al." in the reference entry — only in text)
+- Journal names spelled out in full (no abbreviations)
+- Include DOI where available
+- Every in-text citation must have exactly one matching reference entry
+- Every reference entry must be cited at least once in the text
+
+**Format examples:**
+
+```
+Journal article:
+Khanna, T., & Palepu, K. (2000). Is group affiliation profitable in emerging markets?
+    An analysis of diversified Indian business groups. Journal of Finance, 55(2), 867–891.
+    https://doi.org/10.1111/0022-1082.00229
+
+Book:
+Williamson, O. E. (1985). The economic institutions of capitalism. Free Press.
+
+Book chapter:
+Granovetter, M. (1995). Coase revisited: Business groups in the modern economy.
+    In S. Ghoshal & D. E. Westney (Eds.), Organization theory and the multinational
+    corporation (pp. 93–129). Macmillan.
+```
+
+---
+
+### Post-writing citation audit (MANDATORY before submission)
+
+After the full manuscript is drafted, run a systematic audit. This is the most important step — hallucinated or misattributed citations are a serious academic integrity issue and a common AI failure mode.
+
+#### Audit checklist
+
+**Step 1 — Cross-reference check (structural)**
+- Extract every `(Author, Year)` from the text → list A
+- Extract every entry from the Reference list → list B
+- Confirm: every item in A appears in B; every item in B appears in A
+- Flag any orphan citations (in text but not in references) or orphan references (in list but not cited)
+
+**Step 2 — Existence verification (factual)**
+For every citation, verify the paper actually exists:
+- Search Google Scholar or Semantic Scholar for exact title + author + year
+- Verify: journal name, volume, page numbers, DOI all match
+- If a paper cannot be found: REMOVE IT. Do not guess or reconstruct.
+
+**Step 3 — Content accuracy check (semantic)**
+For the 10–15 most load-bearing citations (foundational theory, key empirical claims):
+- Read the actual abstract or paper
+- Confirm the citation supports the specific claim you made
+- Flag cases where your text misrepresents the cited paper's argument
+
+**Step 4 — Journal fit check**
+- Count citations by journal. Is your target journal represented?
+- Are your classic theory sources (the ones any reviewer would expect) all present?
+- Is there a suspiciously recent paper missing that a reviewer will notice?
+
+#### Python audit helper (structural check only)
+
+```python
+import re
+
+def audit_citations(text, references):
+    """
+    Structural audit: find orphan citations and orphan references.
+    
+    Args:
+        text:       full manuscript text as a string
+        references: list of strings like "Khanna & Palepu, 2000" (Author(s), Year)
+    """
+    # Extract all (Author..., Year) patterns from text
+    pattern = r'\(([A-Z][^)]+?,\s*\d{4}[^)]*)\)'
+    in_text = set()
+    for match in re.findall(pattern, text):
+        # Handle "et al." and multiple citations separated by ;
+        for cite in match.split(';'):
+            cite = cite.strip()
+            in_text.add(cite)
+
+    ref_set = set(r.strip() for r in references)
+
+    orphan_citations   = in_text - ref_set    # cited but no reference entry
+    orphan_references  = ref_set  - in_text   # reference entry but never cited
+
+    if orphan_citations:
+        print("CITATIONS WITH NO REFERENCE ENTRY:")
+        for c in sorted(orphan_citations):
+            print(f"  ⚠ {c}")
+    if orphan_references:
+        print("REFERENCE ENTRIES NEVER CITED IN TEXT:")
+        for r in sorted(orphan_references):
+            print(f"  ⚠ {r}")
+    if not orphan_citations and not orphan_references:
+        print("✓ All citations have matching references and vice versa.")
+```
+
+#### ⚠ AI-specific warning
+
+Language models (including Claude) can confabulate plausible-sounding citations — correct author name, plausible year, real journal, but the paper does not exist. **Never trust a citation I generate without independently verifying it in Google Scholar.** This applies especially to:
+- Papers with 3+ authors (easy to mix up)
+- Papers before 1990 (harder to find digitally)
+- Working papers or conference proceedings
+- Any citation where I provide a DOI — DOIs can be fabricated too
+
+When in doubt: remove the citation rather than risk a fabricated reference.
