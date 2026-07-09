@@ -840,28 +840,74 @@ The full-manuscript skeleton for SMJ/JMS/AMJ empirical papers. Section order, re
 
 ### Page 1: Title Page
 
+Title, Abstract, and Keywords all fit on **one page**. Page break immediately after Keywords.
+
 - Paper title: **centered, ALL CAPS, bold**
-- Then "**ABSTRACT**" centered, bold
-- Abstract body: double-spaced, no first-line indent, ~150–250 words
-- "**Keywords:**" (bold) followed by 4–6 terms, lowercase, comma-separated
-- Page break before the Introduction
+- "**ABSTRACT**" heading: centered, bold
+- Abstract body: double-spaced, no first-line indent, **150 words max** (aim for 130–150)
+- "**Keywords:**" (bold) followed by **≤ 6 terms**, lowercase, comma-separated
+- Page break before Introduction
+
+#### Abstract content rules (strict)
+
+The abstract has exactly four jobs — in this order:
+
+| # | Job | What to write |
+|---|-----|---------------|
+| 1 | **What we study** | Topic, setting, phenomenon (1–2 sentences) |
+| 2 | **Theory** | The overarching theoretical lens and the core argument (1–2 sentences) |
+| 3 | **Most important finding** | The single most striking empirical result — in plain language, no coefficients (1 sentence) |
+| 4 | **Contribution** | Theory contribution first; briefly note empirical contribution if space allows (1–2 sentences) |
+
+#### What the abstract must NOT contain
+
+- **No citations** — not even one (e.g., "Drawing on Hambrick & Mason, 1984" → forbidden)
+- **No hypothesis labels** — never write "H1", "Hypothesis 2", "consistent with H3" etc.
+- **No specific coefficients or p-values** — say "positively associated", not "β = 0.04, p < 0.01"
+- **No discussion of robustness checks or methodology details** — save for Methods
+- **No sub-clause listing of moderators** — pick the most theoretically interesting finding; do not enumerate all hypotheses
+
+#### What to emphasize
+
+- The **theory contribution** is always the headline — what conceptual advance does this paper make?
+- The **overarching theory** (e.g., "attention-based view", "network embeddedness") should be named explicitly
+- One crisp finding that a reader will remember — the "punchline"
 
 ```python
-# Title page
-p = doc.add_paragraph()
-p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-r = p.add_run("WHEN DO BUSINESS GROUP AFFILIATES DIVEST?")
+# Title page — all three elements on one page, then page break
+p_title = doc.add_paragraph()
+p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+r = p_title.add_run("WHEN DO BUSINESS GROUP AFFILIATES DIVEST?")
 r.bold = True
+r.font.size = Pt(12)
+p_title.paragraph_format.line_spacing_rule = WD_LINE_SPACING.DOUBLE
 
 heading1(doc, "ABSTRACT")
 
-p_abs = doc.add_paragraph("This study examines ...")   # 150-250 words, no indent
+# Abstract body — 130-150 words, no citations, no H1/H2 labels
+p_abs = doc.add_paragraph(
+    "We examine when business group affiliates engage in divestitures — "
+    "a strategic renewal option that group-specific exit barriers typically suppress. "
+    "Drawing on the attention-based view, we argue that an affiliate's position in the "
+    "group's board interlock network shapes how much attention ultimate owners direct "
+    "toward it, which in turn determines the affiliate's access to internal capital "
+    "and its inertial commitment to the group. More central affiliates face higher "
+    "exit barriers and are therefore less likely to divest. Analyzing a panel of "
+    "1,964 affiliated firms across 456 business groups in India (2003–2021), "
+    "we find strong support for this argument. The moderating role of group size "
+    "and diversification further clarifies when network position matters most. "
+    "Our findings extend the attention-based view to intra-group network dynamics "
+    "and contribute to the divestiture literature by identifying network-level "
+    "antecedents of exit barrier variation."
+)
 p_abs.paragraph_format.first_line_indent = None
+p_abs.paragraph_format.line_spacing_rule = WD_LINE_SPACING.DOUBLE
 
 p_kw = doc.add_paragraph()
-r_kw = p_kw.add_run("Keywords: ")
+r_kw = p_kw.add_run("Keywords:  ")
 r_kw.bold = True
-p_kw.add_run("business groups, divestiture, board interlocks, emerging markets")
+p_kw.add_run("divestiture, business group, board interlock, attention-based view, network position, emerging markets")
+# Max 6 terms — if you have more, cut the least distinctive one
 
 doc.add_page_break()
 ```
