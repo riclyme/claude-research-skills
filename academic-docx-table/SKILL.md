@@ -1324,3 +1324,73 @@ insert_placeholder(doc, "Table 2")
 WRONG: placeholder at top of Results section before any text
 RIGHT: "...as shown in Table 2."  [INSERT TABLE 2 HERE]  "Model 1 is the baseline..."
 ```
+
+---
+
+## PART 9 — Body Text Alignment and Paragraph Indentation
+
+### Justification: full (双向对齐)
+
+All body text must be fully justified (left and right edges both aligned). This is the standard for SMJ/JMS/AMJ.
+
+```python
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+# Set on the Normal style so all body paragraphs inherit it
+style = doc.styles['Normal']
+style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+```
+
+### Paragraph indentation: section-first rule
+
+| Paragraph position | First-line indent |
+|--------------------|-------------------|
+| First paragraph after a section/subsection heading | **No indent** |
+| All subsequent paragraphs within the same section | **0.5 inch indent** |
+
+This follows the standard print convention: indent signals "new paragraph within the same thought thread"; no indent signals "fresh start after a heading."
+
+```python
+INDENT = Inches(0.5)
+
+def body_first(doc, text):
+    """First paragraph of a section — justified, no indent."""
+    p = doc.add_paragraph(text)
+    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    p.paragraph_format.first_line_indent = None   # no indent
+    p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.DOUBLE
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after  = Pt(0)
+    return p
+
+def body(doc, text):
+    """Subsequent paragraphs — justified, 0.5-inch first-line indent."""
+    p = doc.add_paragraph(text)
+    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    p.paragraph_format.first_line_indent = INDENT
+    p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.DOUBLE
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after  = Pt(0)
+    return p
+
+# Usage:
+heading2(doc, "Sample and Data")
+body_first(doc, "Our sample comprises 1,964 affiliated firms...")   # no indent
+body(doc, "We obtain financial data from CMIE Prowess IQ...")       # 0.5-inch indent
+body(doc, "The final sample spans 2003 to 2021...")                 # 0.5-inch indent
+```
+
+### Do NOT add blank lines between paragraphs
+
+In a double-spaced manuscript, blank lines between paragraphs look like section breaks. Use indentation (above) to signal paragraph boundaries — never `doc.add_paragraph()` between body paragraphs.
+
+```python
+# WRONG — adds visual gap that looks like a section break
+body(doc, "First paragraph.")
+doc.add_paragraph()          # ← never do this between body paragraphs
+body(doc, "Second paragraph.")
+
+# RIGHT — indentation alone marks the new paragraph
+body(doc, "First paragraph.")
+body(doc, "Second paragraph.")   # indent signals the break
+```
