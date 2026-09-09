@@ -1,0 +1,6 @@
+interface:
+  display_name: "Stata Research Assurance"
+  short_description: "Freeze, build, audit, and validate Stata research pipelines."
+  default_prompt: "Use $stata-research-assurance to select the appropriate mode, preserve the research design, and produce an auditable Stata 19 workflow."
+policy:
+  allow_implicit_invocation: true
