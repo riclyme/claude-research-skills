@@ -1,0 +1,2 @@
+variable_name,construct,unit,generated_object_type,model_provider,model_version,prompt_version,run_date,source_information_Ci_definition,training_sample,tuning_sample,holdout_sample,human_validation_sampling_design,human_validation_n,prevalence,false_positive_rate,false_negative_rate,precision,recall,specificity,calibration_metric,repeated_run_reliability,subgroup_time_diagnostics,threshold_or_aggregation_rule,naive_downstream_estimate,measurement_aware_estimate_or_range,leakage_check,unresolved_limitations,status
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
