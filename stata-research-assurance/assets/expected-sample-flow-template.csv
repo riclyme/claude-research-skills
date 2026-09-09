@@ -1,0 +1,2 @@
+step_id,starting_dataset,rule,rule_source,expected_direction,expected_rows_before,expected_rows_after,tolerance,actual_rows_before,actual_rows_after,explanation,status
+S01,,,,,,,,,,,PENDING

@@ -1,0 +1,2 @@
+issue_id,severity,domain,affected_claim_or_model,file_and_location,evidence,scientific_risk,required_test_or_fix,acceptance_criterion,status,owner,date_opened,date_closed
+ISSUE-001,,,,,,,,,OPEN,,,
