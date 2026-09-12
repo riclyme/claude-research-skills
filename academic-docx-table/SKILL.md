@@ -2,7 +2,7 @@
 name: academic-docx-table
 description: Builds publication-quality Word (.docx) regression tables for strategy/management journals (SMJ, JMS, AMJ, ASQ style) using python-docx. Covers SMJ manuscript conventions (double-space body, APA headings, tables at end), standard model progression (M1=controls, M2=IV+controls, M3+=moderator+IV+interaction+controls), compact β/[p]/(SE) cell format, academic top-bottom borders, landscape section breaks for wide tables, merged moderator rows, FE as "Yes", VIF reporting, and correlation+descriptive statistics tables (numbered lower-triangle with Mean/SD rows). Use when building or reformatting any regression, correlation, or descriptive statistics table in Word.
 author: Yue Zhao (BG Divestment Project, Jul 2026)
-version: 3.0.2
+version: 3.0.3
 argument-hint: "[table_type: main|appendix|iv|corr|desc] [journal: SMJ|JMS|AMJ] [outfile.docx]"
 allowed-tools: ["Read", "Write", "Edit", "Bash"]
 ---
@@ -24,6 +24,7 @@ Apply these rules consistently to every report produced with this skill, includi
 4. **Blank means no value:** leave missing, unavailable, not-applicable, and not-in-this-model cells genuinely empty. Do not insert dash fillers (`—`, `–`, `-`), `N/A`, `NA`, a dot, a fabricated zero, whitespace padding, or empty `[]` / `()`. Treat `None` and `NaN` as blank display values. In a partly available coefficient cell, leave only the missing component's paragraph empty; an entirely absent entry has one empty paragraph and no text. A genuine numerical zero still displays `0.000`, and a real negative number retains its minus sign. This is display handling only: never replace analytic missing values with zeros or alter the source data. Keep absence reasons in the internal audit. A failed estimation or export must retain its diagnostic and must not be disguised as a successful model with blank output.
 5. **No process notes in reports:** do not add outward-facing notes about audit/review success, reruns, version locks, source packages, generation steps, or rounding procedures. Keep those in internal audit records. Retain only concise statistical definitions needed to understand a table, such as estimator, outcome, SE treatment, significance-star convention, and sample definition. Do not delete these necessary definitions or turn internal workflow instructions into report prose.
 6. **Upright table text:** all table cells and table notes use roman (not italic) text, including p-values, coefficients, SEs, headers, and labels. Bold emphasis remains allowed. This table-only rule does not remove the existing italic-statistic convention from non-table body prose.
+7. **Hypothesis identifiers after variable labels:** append the verified current manuscript identifier once, directly after each corresponding focal estimated term's label, for example `Focal predictor (H1)` or `Focal predictor × moderator (H2)` only when that is the manuscript's actual mapping. For a moderation hypothesis, tag the interaction row, not the moderator's lower-order/control row. Read the current manuscript and project instructions (such as AGENTS.md) for the mapping; generic examples are not a universal numbering scheme. Never derive H numbers from column order or statistical significance, and never invent, reorder, or silently remap hypotheses.
 
 Reusable display helper (keep raw values separate):
 
