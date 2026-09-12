@@ -2,7 +2,7 @@
 name: academic-docx-table
 description: Builds publication-quality Word (.docx) regression tables for strategy/management journals (SMJ, JMS, AMJ, ASQ style) using python-docx. Covers SMJ manuscript conventions (double-space body, APA headings, tables at end), standard model progression (M1=controls, M2=IV+controls, M3+=moderator+IV+interaction+controls), compact β/[p]/(SE) cell format, academic top-bottom borders, landscape section breaks for wide tables, merged moderator rows, FE as "Yes", VIF reporting, and correlation+descriptive statistics tables (numbered lower-triangle with Mean/SD rows). Use when building or reformatting any regression, correlation, or descriptive statistics table in Word.
 author: Yue Zhao (BG Divestment Project, Jul 2026)
-version: 3.0.0
+version: 3.0.1
 argument-hint: "[table_type: main|appendix|iv|corr|desc] [journal: SMJ|JMS|AMJ] [outfile.docx]"
 allowed-tools: ["Read", "Write", "Edit", "Bash"]
 ---
@@ -12,6 +12,39 @@ allowed-tools: ["Read", "Write", "Edit", "Bash"]
 Encodes the full Word table formatting convention refined over many iterations for the BG Divestment project. Applies to Table 2 (main), TABLE A1–A4 (appendix), and any future regression output tables.
 
 ---
+
+## Report presentation rules (updated 2026-09-12)
+
+Apply these rules consistently to every report produced with this skill, including main documents, supplements, appendices, and standalone tables. They govern presentation only; preserve the existing data, models, hypotheses, and significance-star convention.
+
+1. **One font size:** use Times New Roman **12 pt** for titles, headings, body, all table cells (coefficient, p-value, and SE alike), table notes, captions, headers, footers, and page numbers. Keep italic p-values and other existing emphasis, but never make them smaller. Use single line spacing in tables with enough row height; do not constrain 12 pt text to the old exact 9/10 pt line height. If content does not fit, wrap labels, widen columns, use landscape, split column panels, or continue on another page with repeated headers. Do not shrink text to fit.
+2. **Three-decimal rounding:** display continuous statistics (coefficients, SEs, confidence limits, correlations, means/SDs, fit statistics, and reported p-values) with exactly three decimals, rounded from the unrounded source using `Decimal(str(x)).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)`. Do not truncate, double-round an already shortened display, or use binary-float half-even formatting as the rounding step. Normalize negative zero to `0.000`. Keep observation counts, years, model/table/page numbers, and other integer identifiers as integers. Preserve full precision in data/audit exports.
+3. **Numeric p-value display:** show a leading zero and three decimals, e.g. `[0.001]`, `[0.000]`, or italic `p = 0.038` in prose. Do not replace a reported p-value with an inequality or threshold. A displayed `0.000` is rounded to three decimals and never means an exact zero. Compute stars from the unrounded p-value using the project's existing thresholds; never infer stars from displayed p-values. In a star legend use words such as “p below 0.050,” keeping the established thresholds unchanged. Comparison operators inside code remain necessary and are not a display violation. If only a threshold statement is available, retrieve the precise saved p-value instead of inventing one.
+
+Reusable display helper (keep raw values separate):
+
+```python
+from decimal import Decimal, ROUND_HALF_UP
+
+def format_3(value):
+    """Round a finite continuous statistic for display, without changing its source."""
+    number = Decimal(str(value))
+    if not number.is_finite():
+        raise ValueError("Use the report's missing-value marker for non-finite data")
+    rounded = number.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+    if rounded == 0:
+        rounded = abs(rounded)
+    return format(rounded, ".3f")
+
+assert format_3("0.6993") == "0.699"
+assert format_3("0.2119") == "0.212"
+assert format_3("0.0006") == "0.001"
+assert format_3("0.0004") == "0.000"
+assert format_3("0.1525") == "0.153"
+assert format_3("-0.0004") == "0.000"
+```
+
+Before delivery, inspect rendered pages and the saved document's effective fonts, including table notes and page-number fields. Confirm the three-decimal displays against the full-precision source and check the star legend independently of rounding. Correct imported styles/direct formatting that retain a different size or theme font.
 
 ## PART 1 — SMJ Manuscript Formatting Conventions
 
@@ -117,7 +150,7 @@ FOOTER = [
     ("Observations",        ["11,322", "11,322", "11,322", "11,322", "11,322"]),
     ("Year fixed effects",  ["Yes",    "Yes",    "Yes",    "Yes",    "Yes"   ]),
     ("Industry fixed effects",["Yes",  "Yes",    "Yes",    "Yes",    "Yes"   ]),
-    ("Log-likelihood",      ["-2341",  "-2298",  "-2287",  "-2301",  "-2284" ]),
+    ("Log-likelihood",      ["-2341.000",  "-2298.000",  "-2287.000",  "-2301.000",  "-2284.000" ]),
 ]
 # M1 has no IV, so Pseudo R² or LL should increase monotonically through M2–M5
 ```
@@ -133,7 +166,7 @@ estat vif
 * Report: mean VIF < 10 (ideally < 5). If any single VIF > 10, flag it.
 ```
 
-In the paper text (not a table): "Mean VIF = X.XX (max = X.XX), well below the threshold of 10, indicating no multicollinearity concern."
+In the paper text (not a table): "Mean VIF = X.XXX (max = X.XXX), well below the threshold of 10, indicating no multicollinearity concern."
 
 No separate VIF table needed unless a reviewer explicitly requests one.
 
@@ -144,32 +177,35 @@ No separate VIF table needed unless a reviewer explicitly requests one.
 Each coefficient cell contains exactly 3 paragraphs — no more, no less:
 
 ```python
-def ct(cell, b, se, p, bold=False):
+def ct(cell, b, se, p, bold=False, star_fn=None):
     """Write β***/[p]/(SE) into a table cell."""
     cell.text = ""
-    stars = "***" if p < 0.01 else "**" if p < 0.05 else "*" if p < 0.10 else ""
+    stars = star_fn(p) if star_fn else ("***" if p < 0.01 else "**" if p < 0.05 else "*" if p < 0.10 else "")
 
     # Line 1: coefficient + stars
-    p1 = cell.add_paragraph()
-    r1 = p1.add_run(f"{b:.3f}{stars}")
+    p1 = cell.paragraphs[0]
+    r1 = p1.add_run(format_3(b) + stars)
     r1.bold = bold
-    r1.font.size = Pt(10)
+    r1.font.size = Pt(12)
+    r1.font.name = "Times New Roman"
 
-    # Line 2: p-value in brackets, italic, small
+    # Line 2: p-value in brackets, italic, 12 pt
     p2 = cell.add_paragraph()
-    r2 = p2.add_run(f"[{p:.3f}]")
+    r2 = p2.add_run("[" + format_3(p) + "]")
     r2.italic = True
-    r2.font.size = Pt(8)
+    r2.font.size = Pt(12)
+    r2.font.name = "Times New Roman"
 
-    # Line 3: SE in parentheses, small
+    # Line 3: SE in parentheses, 12 pt
     p3 = cell.add_paragraph()
-    r3 = p3.add_run(f"({se:.3f})")
-    r3.font.size = Pt(8)
+    r3 = p3.add_run("(" + format_3(se) + ")")
+    r3.font.size = Pt(12)
+    r3.font.name = "Times New Roman"
 
     for para in cell.paragraphs:
         para.paragraph_format.space_before = Pt(0)
         para.paragraph_format.space_after  = Pt(0)
-        para.paragraph_format.line_spacing = Pt(10)
+        para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
 ```
 
 Label cells (left column):
@@ -179,10 +215,10 @@ def ct_label(cell, text, bold=False, indent=False):
     p = cell.add_paragraph()
     r = p.add_run(("  " if indent else "") + text)
     r.bold = bold
-    r.font.size = Pt(10)
+    r.font.size = Pt(12)
     p.paragraph_format.space_before = Pt(0)
     p.paragraph_format.space_after  = Pt(0)
-    p.paragraph_format.line_spacing = Pt(10)
+    p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
 ```
 
 ## Border style (academic top-bottom only)
@@ -322,12 +358,12 @@ from docx.enum.text  import WD_ALIGN_PARAGRAPH
 
 tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
 
-def left_title(doc, text, bold=False, size=12):
+def left_title(doc, text, bold=False):
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     r = p.add_run(text)
     r.bold = bold
-    r.font.size = Pt(size)
+    r.font.size = Pt(12)
     p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
     p.paragraph_format.space_before = Pt(0)
     p.paragraph_format.space_after  = Pt(2)
@@ -335,13 +371,15 @@ def left_title(doc, text, bold=False, size=12):
 
 ## Star notation convention
 
+Preserve the project's established star thresholds. The generic examples below apply only if that is the existing convention; pass the original project's star function when it differs. Rounding never changes star assignment.
+
 | Symbol | Threshold |
 |--------|-----------|
-| ***    | p < 0.01  |
-| **     | p < 0.05  |
-| *      | p < 0.10  |
+| ***    | p below 0.010 |
+| **     | p below 0.050 |
+| *      | p below 0.100 |
 
-Always add footnote: `* p < 0.10, ** p < 0.05, *** p < 0.01. Standard errors in parentheses.`
+For this generic convention, add footnote: `* p below 0.100, ** p below 0.050, *** p below 0.010. Standard errors in parentheses.`
 
 ## Full script skeleton
 
@@ -355,18 +393,18 @@ from docx.oxml          import OxmlElement
 
 doc = Document()
 
-# Set default style to single-spaced 11pt
+# Set default style to single-spaced 12pt
 style = doc.styles['Normal']
 style.font.name = 'Times New Roman'
-style.font.size = Pt(11)
+style.font.size = Pt(12)
 style.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
 
 # Add landscape section if needed
 add_landscape_section(doc)
 
 # Add table title (left-aligned)
-left_title(doc, "Table X. [Table Title]", bold=True, size=12)
-left_title(doc, "[subtitle or note]", bold=False, size=10)
+left_title(doc, "Table X. [Table Title]", bold=True)
+left_title(doc, "[subtitle or note]", bold=False)
 vsp(doc)
 
 # Build table
@@ -461,12 +499,12 @@ insert_portrait_section(doc)   # return to portrait
 **Exact format from the screenshot:**
 
 - Title: **"Table 2a."** (bold) + rest of title (normal) — all one paragraph, space_after=0
-- Column headers: "Variables" | (1) | (2) | (3) | ... | (N) — centered, 8pt
-- Variable rows: "(1) Divestiture dummy" | 1.00 | [correlations] — lower triangle only, upper blank
-- Stars: * only (p<0.10 threshold — correlations use this threshold)
+- Column headers: "Variables" | (1) | (2) | (3) | ... | (N) — centered, 12pt
+- Variable rows: "(1) Divestiture dummy" | 1.000 | [correlations] — lower triangle only, upper blank
+- Stars: follow the existing project convention. The three-level code and legend below are illustrative and apply only when they match that convention; retain the project's original thresholds and evaluate them using unrounded p-values.
 - Bottom rows: "Mean" and "SD" — same table, no separator
-- Note: italic, 8pt, below table: "Note: Obs. = N,NNN. *** p<0.01, ** p<0.05, * p<0.1."
-- Font: 8pt throughout (to fit 16 columns on landscape page)
+- Note: italic, 12pt, below table: "Note: Obs. = N,NNN. *** p below 0.010, ** p below 0.050, * p below 0.100."
+- Font: 12pt throughout; split wide matrices into labeled continuation panels if needed
 - Table width: AUTO-fit to page (use `tbl.style = 'Table Grid'` then clear borders)
 
 ```python
@@ -509,11 +547,11 @@ def make_corr_desc_table(doc, df, var_names, var_labels, title, note_obs):
     bold_part, rest = title.split('. ', 1) if '. ' in title else (title, '')
     r1 = p_title.add_run(bold_part + '. ')
     r1.bold = True
-    r1.font.size = Pt(10)
+    r1.font.size = Pt(12)
     if rest:
         r2 = p_title.add_run(rest)
         r2.bold = False
-        r2.font.size = Pt(10)
+        r2.font.size = Pt(12)
     p_title.paragraph_format.space_after  = Pt(0)   # title glues to table
     p_title.paragraph_format.space_before = Pt(0)
     p_title.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
@@ -525,7 +563,7 @@ def make_corr_desc_table(doc, df, var_names, var_labels, title, note_obs):
     tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
     clear_table_borders(tbl)
 
-    FONT_SIZE = Pt(8)
+    FONT_SIZE = Pt(12)
 
     def cell_text(cell, text, bold=False, italic=False, align=WD_ALIGN_PARAGRAPH.CENTER):
         cell.text = ''
@@ -537,7 +575,7 @@ def make_corr_desc_table(doc, df, var_names, var_labels, title, note_obs):
         r.italic = italic
         p.paragraph_format.space_before = Pt(0)
         p.paragraph_format.space_after  = Pt(0)
-        p.paragraph_format.line_spacing = Pt(9)
+        p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
 
     # Header row
     hdr = tbl.rows[0]
@@ -548,7 +586,7 @@ def make_corr_desc_table(doc, df, var_names, var_labels, title, note_obs):
     # Variable rows — lower triangle only
     def fmt_corr(r, p):
         stars = '***' if p < 0.01 else '**' if p < 0.05 else '*' if p < 0.10 else ''
-        return f'{r:.2f}{stars}'
+        return format_3(r) + stars
 
     for i in range(n_vars):
         row = tbl.rows[i + 1]
@@ -557,7 +595,7 @@ def make_corr_desc_table(doc, df, var_names, var_labels, title, note_obs):
             if j > i:
                 cell_text(row.cells[j + 1], '')          # upper triangle blank
             elif j == i:
-                cell_text(row.cells[j + 1], '1.00')      # diagonal
+                cell_text(row.cells[j + 1], '1.000')      # diagonal
             else:
                 val = fmt_corr(corr_matrix[i, j], pval_matrix[i, j])
                 cell_text(row.cells[j + 1], val)
@@ -566,13 +604,13 @@ def make_corr_desc_table(doc, df, var_names, var_labels, title, note_obs):
     mean_row = tbl.rows[n_vars + 1]
     cell_text(mean_row.cells[0], 'Mean', align=WD_ALIGN_PARAGRAPH.LEFT)
     for j in range(n_vars):
-        cell_text(mean_row.cells[j + 1], f'{means[j]:.2f}')
+        cell_text(mean_row.cells[j + 1], format_3(means[j]))
 
     # SD row
     sd_row = tbl.rows[n_vars + 2]
     cell_text(sd_row.cells[0], 'SD', align=WD_ALIGN_PARAGRAPH.LEFT)
     for j in range(n_vars):
-        cell_text(sd_row.cells[j + 1], f'{sds[j]:.2f}')
+        cell_text(sd_row.cells[j + 1], format_3(sds[j]))
 
     # Borders
     for cell in tbl.rows[0].cells:
@@ -582,9 +620,9 @@ def make_corr_desc_table(doc, df, var_names, var_labels, title, note_obs):
 
     # Note below table
     p_note = doc.add_paragraph()
-    r_note = p_note.add_run(f'Note: Obs. = {note_obs}. *** p<0.01, ** p<0.05, * p<0.1.')
+    r_note = p_note.add_run(f'Note: Obs. = {note_obs}. *** p below 0.010, ** p below 0.050, * p below 0.100.')
     r_note.italic = True
-    r_note.font.size = Pt(8)
+    r_note.font.size = Pt(12)
     p_note.paragraph_format.space_before = Pt(2)
     p_note.paragraph_format.space_after  = Pt(0)
     p_note.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
@@ -618,13 +656,13 @@ make_corr_desc_table(
 insert_portrait_section(doc)
 ```
 
-### Key sizing rules to fit 16 columns on one page
+### Key sizing rules for wide tables
 
-- Font: **8pt** throughout (header + data + Mean/SD)
-- Line spacing: **9pt** (tighter than standard)
+- Font: **12pt** throughout (header + data + Mean/SD + notes)
+- Line spacing: **single**, with sufficient row height for 12pt text
 - Margins: **0.5 inch** on all sides in landscape (set in `insert_landscape_section`)
 - Column width: let Word auto-fit — do NOT set manual column widths for correlation tables
-- If still overflowing: reduce font to 7.5pt and line spacing to 8pt
+- If still overflowing: wrap labels, widen columns, or split into labeled panels/continuation pages with repeated headers; retain 12pt text
 
 ---
 
@@ -633,13 +671,13 @@ insert_portrait_section(doc)
 ### The format (from screenshot)
 
 ```
-(β = 0.04; RSE = 0.02; p = 0.01).
+(β = 0.040; RSE = 0.020; p = 0.010).
 ```
 
 Rules (APA 7th edition, SMJ convention):
 - **Italic**: Greek letters (β, α, γ), and single-letter roman statistics (p, t, F, r, z, N when = sample size used as a variable)
 - **Roman (not italic)**: multi-letter abbreviations (RSE, SE, SD, VIF, IRR), numbers, equals signs, semicolons, parentheses
-- **Subscripts**: automatic small sizing via `font.subscript = True` — e.g., β₁, χ²(df)
+- **Subscripts**: retain a nominal 12pt font size while positioning via `font.subscript = True` — e.g., β₁, χ²(df)
 - Separator: semicolons (`;`), not commas
 - Whole expression in parentheses; period goes AFTER the closing parenthesis (outside)
 
@@ -667,14 +705,14 @@ def inline_stat(para, stats_list, terminal_period=True):
     Args:
         para:        a docx Paragraph object (already has preceding text)
         stats_list:  list of (symbol, value, italic_symbol) tuples, e.g.:
-                     [('β', '0.04', True),   # β = 0.04
-                      ('RSE',    '0.02', False),   # RSE = 0.02
-                      ('p',      '0.01', True)]    # p = 0.01
+                     [('β', '0.040', True),   # β = 0.040
+                      ('RSE',    '0.020', False),   # RSE = 0.020
+                      ('p',      '0.010', True)]    # p = 0.010
         terminal_period: add period after closing parenthesis (default True)
 
-    Example output appended to para:  (β = 0.04; RSE = 0.02; p = 0.01).
+    Example output appended to para:  (β = 0.040; RSE = 0.020; p = 0.010).
     """
-    STAT_SIZE = Pt(11)   # match surrounding body text size
+    STAT_SIZE = Pt(12)   # match surrounding body text size
 
     def run(text, italic=False, subscript=False, superscript=False):
         r = para.add_run(text)
@@ -692,7 +730,7 @@ def inline_stat(para, stats_list, terminal_period=True):
             run('; ')
         run(symbol, italic=is_italic)
         run(' = ')
-        run(value, italic=False)
+        run(str(value) if symbol in {"N", "df"} else format_3(value), italic=False)
     run(')')
     if terminal_period:
         run('.')
@@ -700,12 +738,12 @@ def inline_stat(para, stats_list, terminal_period=True):
 
 # ── Usage examples ──────────────────────────────────────────────────────────────
 
-# Basic: (β = 0.04; RSE = 0.02; p = 0.01).
+# Basic: (β = 0.040; RSE = 0.020; p = 0.010).
 p = doc.add_paragraph('Board centrality is positively related to divestiture')
 inline_stat(p, [
-    ('β', '0.04', True),
-    ('RSE',    '0.02', False),
-    ('p',      '0.01', True),
+    ('β', '0.040', True),
+    ('RSE',    '0.020', False),
+    ('p',      '0.010', True),
 ])
 
 # With chi-square and df subscript:
@@ -713,12 +751,12 @@ inline_stat(p, [
 p2 = doc.add_paragraph('Wu-Hausman endogeneity test: ')
 run_chi = p2.add_run('χ')
 run_chi.italic = True
-run_chi.font.size = Pt(11)
+run_chi.font.size = Pt(12)
 run_sup = p2.add_run('2')
 run_sup.font.superscript = True
-run_sup.font.size = Pt(9)
+run_sup.font.size = Pt(12)
 run_df = p2.add_run('(1)')
-run_df.font.size = Pt(11)
+run_df.font.size = Pt(12)
 inline_stat(p2, [
     ('',  '0.023', False),   # value only after the χ²(1)
     ('p', '0.879', True),
@@ -733,22 +771,22 @@ r_beta = para.add_run('β')
 r_beta.italic = True
 r_sub = para.add_run('1')
 r_sub.font.subscript = True
-r_sub.font.size = Pt(8)   # slightly smaller than body
+r_sub.font.size = Pt(12)   # same nominal size as body
 
 # Superscript: χ²  →  χ + superscript "2"
 r_chi = para.add_run('χ')
 r_chi.italic = True
 r_sup = para.add_run('2')
 r_sup.font.superscript = True
-r_sup.font.size = Pt(8)
+r_sup.font.size = Pt(12)
 
 # Degrees of freedom in parentheses after superscript: F(2, 11989)
 # Write as plain text — no sub/superscript needed
-para.add_run('F(2, 11989) = 111.96')
+para.add_run('F(2, 11989) = 111.960')
 # Then italicize the F only:
 r_F = para.add_run('F')
 r_F.italic = True
-para.add_run('(2, 11989) = 111.96')
+para.add_run('(2, 11989) = 111.960')
 ```
 
 ### Standard inline reporting phrases (copy templates)
@@ -759,12 +797,13 @@ para.add_run('(2, 11989) = 111.96')
 inline_stat(p, [('β','0.043',True), ('SE','0.018',False), ('p','0.017',True)])
 
 # NBreg IRR in body text  
-"The incidence rate ratio is 1.08"
-inline_stat(p, [('IRR','1.08',False), ('p','0.003',True)])
+"The incidence rate ratio is 1.080"
+inline_stat(p, [('IRR','1.080',False), ('p','0.003',True)])
 
 # IV first-stage F-stat
+# Illustrative unrounded p only; use the actual p from saved output for real results.
 "The instruments are jointly significant"
-inline_stat(p, [('F','111.96',True), ('p','<0.001',True)])
+inline_stat(p, [('F','111.960',True), ('p','0.0004',True)])
 
 # Endogeneity test
 "The Wu-Hausman test is consistent with exogeneity"
@@ -863,7 +902,7 @@ The abstract has exactly four jobs — in this order:
 
 - **No citations** — not even one (e.g., "Drawing on Hambrick & Mason, 1984" → forbidden)
 - **No hypothesis labels** — never write "H1", "Hypothesis 2", "consistent with H3" etc.
-- **No specific coefficients or p-values** — say "positively associated", not "β = 0.04, p < 0.01"
+- **No specific coefficients or p-values** — say "positively associated", not "β = 0.040, p = 0.010"
 - **No discussion of robustness checks or methodology details** — save for Methods
 - **No sub-clause listing of moderators** — pick the most theoretically interesting finding; do not enumerate all hypotheses
 
@@ -993,7 +1032,7 @@ Four subsections, in this order:
 - Each robustness table goes in the Online Appendix as a **separate file** — never truncated, always the full model (see Part 5).
 - Endogeneity: Wu-Hausman test + IV-probit. Report in text as:
 
-  > "The Wu-Hausman test is consistent with exogeneity (χ²(1) = X.XX, *p* = X.XX). IV-probit results (TABLE A4) are directionally consistent with our main findings."
+  > "The Wu-Hausman test is consistent with exogeneity (χ²(1) = X.XXX, *p* = X.XXX). IV-probit results (TABLE A4) are directionally consistent with our main findings."
 
   (Format the χ² and *p* per Part 4 inline-stat conventions.)
 
