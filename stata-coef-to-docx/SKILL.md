@@ -2,7 +2,7 @@
 name: stata-coef-to-docx
 description: End-to-end pipeline — runs Stata models using the printcoef pattern, parses the log to extract all coefficients (b, se, p), and generates a compact publication-quality Word (.docx) regression table in JMS/AMJ style without any manual copy-paste. Eliminates the risk of hardcoded wrong numbers. Use when you say "run models and make the table", "update the regression table with new results", or "build Table 2 from Stata output".
 author: Yue Zhao (BG Divestment Project, Jul 2026)
-version: 1.0.2
+version: 1.0.3
 argument-hint: "[checkpoint.dta] [models_spec] [outfile.docx]"
 allowed-tools: ["Read", "Write", "Edit", "Bash"]
 ---
@@ -100,6 +100,7 @@ The table style rules:
 - Borders: thick top + thin under header + thick bottom only (no internal lines)
 - Left-aligned table + left-aligned titles (for appendix)
 - Merged rows for moderator variables: in the model that tests Hk, show the moderator coefficient; in other models, show the corresponding control variable coefficient in the same row
+- Append the verified current manuscript hypothesis identifier once after the corresponding focal term label, such as `Focal predictor (H1)` when that mapping is verified. A moderation hypothesis belongs on the interaction row, not on the lower-order moderator/control row. Use the manuscript and project instructions (such as AGENTS.md) to establish the mapping; never infer H numbers from model-column order, significance, or generic examples, and never invent, reorder, or silently remap hypotheses.
 
 ## Important: Merged moderator rows
 
