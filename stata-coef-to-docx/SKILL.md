@@ -2,7 +2,7 @@
 name: stata-coef-to-docx
 description: End-to-end pipeline — runs Stata models using the printcoef pattern, parses the log to extract all coefficients (b, se, p), and generates a compact publication-quality Word (.docx) regression table in JMS/AMJ style without any manual copy-paste. Eliminates the risk of hardcoded wrong numbers. Use when you say "run models and make the table", "update the regression table with new results", or "build Table 2 from Stata output".
 author: Yue Zhao (BG Divestment Project, Jul 2026)
-version: 1.0.1
+version: 1.0.2
 argument-hint: "[checkpoint.dta] [models_spec] [outfile.docx]"
 allowed-tools: ["Read", "Write", "Edit", "Bash"]
 ---
@@ -79,9 +79,9 @@ def parse_coef_log(logfile):
             if c and current:
                 label, b, se, p = c.groups()
                 try:
-                    models[current][label] = (float(b), float(se), float(p))
-                except ValueError:
-                    models[current][label] = None
+                    models[current][label] = tuple(None if value == "." else float(value) for value in (b, se, p))
+                except ValueError as error:
+                    raise ValueError(f"Invalid coefficient record for {label}; retain the source log") from error
     return models
 ```
 
@@ -90,10 +90,13 @@ def parse_coef_log(logfile):
 Use [academic-docx-table](../academic-docx-table/SKILL.md) and its `format_3` helper with the full-precision extracted data. Apply its report presentation rules to titles, headings, body, tables, notes, headers/footers, and page numbers. Reformatting existing estimates does not authorize rerunning models or changing the project's data or significance-star thresholds.
 
 The table style rules:
-- Use Times New Roman 12 pt consistently throughout the report. Each variable has one row and each coefficient cell exactly 3 paragraphs: `β` plus existing stars, italic `[p]`, `(SE)`, all 12 pt. Never shrink p-values, SEs, notes, or page numbers.
+- Use Times New Roman 12 pt consistently throughout the report. Each variable has one row; each available coefficient cell has 3 paragraphs: `β` plus existing stars, `[p]`, `(SE)`, all upright 12 pt. Missing parts have empty paragraphs; a wholly absent entry is one empty paragraph. Never shrink p-values, SEs, notes, or page numbers.
 - Use single line spacing and zero space before/after within each cell, with enough row height for 12 pt. Fit wide/long tables by wrapping, landscape, split panels, or continuation pages with repeated headers, without shrinking text.
 - Display continuous statistics with three decimals from the unrounded source using `Decimal(str(x)).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)`; normalize negative zero. For example: 0.6993 → 0.699, 0.2119 → 0.212, 0.1525 → 0.153. Keep observation counts, years, and identifiers as integers; preserve full precision in data/audit exports.
 - Report p-values numerically with a leading zero: 0.0006 → `[0.001]`, 0.0004 → `[0.000]`; no inequality signs in reported values. Displayed 0.000 is rounded, never an exact zero. Assign stars from unrounded p using the existing project convention, not from the rounded display; write legend thresholds using “p below …” while preserving their values. Do not invent a precise p-value from a threshold-only source.
+- Leave missing, unavailable, not-applicable, and not-in-model cells genuinely empty. Map source missing values to `None`/`NaN` for display through `format_3`; do not print dash fillers, N/A, NA, dots, invented zeros, whitespace padding, or empty brackets/parentheses. Preserve actual zeros as `0.000` and real negative signs. Keep source values and missingness reasons in the internal audit; retain diagnostics for failed estimates or exports rather than presenting blanks as successful results.
+- Keep every table cell and table note upright (roman), including p-values, coefficients, SEs, headers, and labels; bold is allowed. Non-table inline-statistic italics remain unchanged.
+- Do not add process notes to outward-facing reports or tables: audit/review success, rerun status, version locks/source packages, generation steps, and rounding procedures belong in internal records. Retain only concise notes needed to interpret the statistics, such as estimator, outcome, SE treatment, star convention, and sample definition.
 - Borders: thick top + thin under header + thick bottom only (no internal lines)
 - Left-aligned table + left-aligned titles (for appendix)
 - Merged rows for moderator variables: in the model that tests Hk, show the moderator coefficient; in other models, show the corresponding control variable coefficient in the same row
