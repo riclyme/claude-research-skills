@@ -2,7 +2,7 @@
 name: academic-docx-table
 description: Builds publication-quality Word (.docx) regression tables for strategy/management journals (SMJ, JMS, AMJ, ASQ style) using python-docx. Covers SMJ manuscript conventions (double-space body, APA headings, tables at end), standard model progression (M1=controls, M2=IV+controls, M3+=moderator+IV+interaction+controls), compact β/[p]/(SE) cell format, academic top-bottom borders, landscape section breaks for wide tables, merged moderator rows, FE as "Yes", VIF reporting, and correlation+descriptive statistics tables (numbered lower-triangle with Mean/SD rows). Use when building or reformatting any regression, correlation, or descriptive statistics table in Word.
 author: Yue Zhao (BG Divestment Project, Jul 2026)
-version: 3.0.1
+version: 3.0.2
 argument-hint: "[table_type: main|appendix|iv|corr|desc] [journal: SMJ|JMS|AMJ] [outfile.docx]"
 allowed-tools: ["Read", "Write", "Edit", "Bash"]
 ---
@@ -17,9 +17,13 @@ Encodes the full Word table formatting convention refined over many iterations f
 
 Apply these rules consistently to every report produced with this skill, including main documents, supplements, appendices, and standalone tables. They govern presentation only; preserve the existing data, models, hypotheses, and significance-star convention.
 
-1. **One font size:** use Times New Roman **12 pt** for titles, headings, body, all table cells (coefficient, p-value, and SE alike), table notes, captions, headers, footers, and page numbers. Keep italic p-values and other existing emphasis, but never make them smaller. Use single line spacing in tables with enough row height; do not constrain 12 pt text to the old exact 9/10 pt line height. If content does not fit, wrap labels, widen columns, use landscape, split column panels, or continue on another page with repeated headers. Do not shrink text to fit.
+1. **One font size:** use Times New Roman **12 pt** for titles, headings, body, all table cells (coefficient, p-value, and SE alike), table notes, captions, headers, footers, and page numbers. Keep permitted bold emphasis without changing font size; table cells and table notes use upright text as specified below. Use single line spacing in tables with enough row height; do not constrain 12 pt text to the old exact 9/10 pt line height. If content does not fit, wrap labels, widen columns, use landscape, split column panels, or continue on another page with repeated headers. Do not shrink text to fit.
 2. **Three-decimal rounding:** display continuous statistics (coefficients, SEs, confidence limits, correlations, means/SDs, fit statistics, and reported p-values) with exactly three decimals, rounded from the unrounded source using `Decimal(str(x)).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)`. Do not truncate, double-round an already shortened display, or use binary-float half-even formatting as the rounding step. Normalize negative zero to `0.000`. Keep observation counts, years, model/table/page numbers, and other integer identifiers as integers. Preserve full precision in data/audit exports.
 3. **Numeric p-value display:** show a leading zero and three decimals, e.g. `[0.001]`, `[0.000]`, or italic `p = 0.038` in prose. Do not replace a reported p-value with an inequality or threshold. A displayed `0.000` is rounded to three decimals and never means an exact zero. Compute stars from the unrounded p-value using the project's existing thresholds; never infer stars from displayed p-values. In a star legend use words such as “p below 0.050,” keeping the established thresholds unchanged. Comparison operators inside code remain necessary and are not a display violation. If only a threshold statement is available, retrieve the precise saved p-value instead of inventing one.
+
+4. **Blank means no value:** leave missing, unavailable, not-applicable, and not-in-this-model cells genuinely empty. Do not insert dash fillers (`—`, `–`, `-`), `N/A`, `NA`, a dot, a fabricated zero, whitespace padding, or empty `[]` / `()`. Treat `None` and `NaN` as blank display values. In a partly available coefficient cell, leave only the missing component's paragraph empty; an entirely absent entry has one empty paragraph and no text. A genuine numerical zero still displays `0.000`, and a real negative number retains its minus sign. This is display handling only: never replace analytic missing values with zeros or alter the source data. Keep absence reasons in the internal audit. A failed estimation or export must retain its diagnostic and must not be disguised as a successful model with blank output.
+5. **No process notes in reports:** do not add outward-facing notes about audit/review success, reruns, version locks, source packages, generation steps, or rounding procedures. Keep those in internal audit records. Retain only concise statistical definitions needed to understand a table, such as estimator, outcome, SE treatment, significance-star convention, and sample definition. Do not delete these necessary definitions or turn internal workflow instructions into report prose.
+6. **Upright table text:** all table cells and table notes use roman (not italic) text, including p-values, coefficients, SEs, headers, and labels. Bold emphasis remains allowed. This table-only rule does not remove the existing italic-statistic convention from non-table body prose.
 
 Reusable display helper (keep raw values separate):
 
@@ -27,15 +31,23 @@ Reusable display helper (keep raw values separate):
 from decimal import Decimal, ROUND_HALF_UP
 
 def format_3(value):
-    """Round a finite continuous statistic for display, without changing its source."""
+    """Display missing values as blank and round real numbers without changing data."""
+    if value is None:
+        return ""
     number = Decimal(str(value))
+    if number.is_nan():
+        return ""
     if not number.is_finite():
-        raise ValueError("Use the report's missing-value marker for non-finite data")
+        raise ValueError("Invalid infinite statistic; retain the estimation/export diagnostic")
     rounded = number.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
     if rounded == 0:
         rounded = abs(rounded)
     return format(rounded, ".3f")
 
+assert format_3(None) == ""
+assert format_3(float("nan")) == ""
+assert format_3(0) == "0.000"
+assert format_3("-0.1525") == "-0.153"
 assert format_3("0.6993") == "0.699"
 assert format_3("0.2119") == "0.212"
 assert format_3("0.0006") == "0.001"
@@ -141,9 +153,9 @@ Rules:
 - Variables that are moderators in one model appear as controls (using their control-variable Stata name) in other models — use the **merged row** pattern (Part 3 below) to show them only once per row.
 - M1 is always the baseline. Report it even if nothing is significant.
 
-### Fixed effects: report as "Yes" / "—"
+### Fixed effects: report "Yes" when included; otherwise leave the cell blank
 
-Never report year FE or industry FE coefficients. Instead, add footer rows:
+Never report year FE or industry FE coefficients. Instead, add footer rows. For an effect not included or not applicable, use an empty string; keep any unavailable-status diagnostic in the internal audit:
 
 ```python
 FOOTER = [
@@ -174,37 +186,31 @@ No separate VIF table needed unless a reviewer explicitly requests one.
 
 ## Cell format: compact 3-paragraph style
 
-Each coefficient cell contains exactly 3 paragraphs — no more, no less:
+Each available coefficient cell contains exactly 3 paragraphs: coefficient, p-value, and SE. Missing components have empty paragraphs, without placeholder symbols or brackets. An entirely absent entry is one truly empty paragraph:
 
 ```python
-def ct(cell, b, se, p, bold=False, star_fn=None):
-    """Write β***/[p]/(SE) into a table cell."""
+def ct(cell, b=None, se=None, p=None, bold=False, star_fn=None):
+    """Write available coefficient / [p] / (SE); leave missing parts truly blank."""
     cell.text = ""
-    stars = star_fn(p) if star_fn else ("***" if p < 0.01 else "**" if p < 0.05 else "*" if p < 0.10 else "")
+    b_text, se_text, p_text = format_3(b), format_3(se), format_3(p)
+    if not any((b_text, se_text, p_text)):
+        return  # Word retains one empty paragraph, with no filler text.
 
-    # Line 1: coefficient + stars
-    p1 = cell.paragraphs[0]
-    r1 = p1.add_run(format_3(b) + stars)
-    r1.bold = bold
-    r1.font.size = Pt(12)
-    r1.font.name = "Times New Roman"
-
-    # Line 2: p-value in brackets, italic, 12 pt
-    p2 = cell.add_paragraph()
-    r2 = p2.add_run("[" + format_3(p) + "]")
-    r2.italic = True
-    r2.font.size = Pt(12)
-    r2.font.name = "Times New Roman"
-
-    # Line 3: SE in parentheses, 12 pt
-    p3 = cell.add_paragraph()
-    r3 = p3.add_run("(" + format_3(se) + ")")
-    r3.font.size = Pt(12)
-    r3.font.name = "Times New Roman"
-
-    for para in cell.paragraphs:
+    stars = ""
+    if b_text and p_text:
+        stars = star_fn(p) if star_fn else ("***" if p < 0.01 else "**" if p < 0.05 else "*" if p < 0.10 else "")
+    lines = [b_text + stars, "[" + p_text + "]" if p_text else "",
+             "(" + se_text + ")" if se_text else ""]
+    for index, text in enumerate(lines):
+        para = cell.paragraphs[0] if index == 0 else cell.add_paragraph()
+        if text:
+            run = para.add_run(text)
+            run.bold = bool(bold and index == 0)
+            run.italic = False
+            run.font.name = "Times New Roman"
+            run.font.size = Pt(12)
         para.paragraph_format.space_before = Pt(0)
-        para.paragraph_format.space_after  = Pt(0)
+        para.paragraph_format.space_after = Pt(0)
         para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
 ```
 
@@ -212,10 +218,13 @@ Label cells (left column):
 ```python
 def ct_label(cell, text, bold=False, indent=False):
     cell.text = ""
-    p = cell.add_paragraph()
-    r = p.add_run(("  " if indent else "") + text)
-    r.bold = bold
-    r.font.size = Pt(12)
+    p = cell.paragraphs[0]
+    if text:
+        r = p.add_run(("  " if indent else "") + text)
+        r.bold = bold
+        r.italic = False
+        r.font.name = "Times New Roman"
+        r.font.size = Pt(12)
     p.paragraph_format.space_before = Pt(0)
     p.paragraph_format.space_after  = Pt(0)
     p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
@@ -427,7 +436,8 @@ for i, (label_text, key, _) in enumerate(ROWS):
         vals = [DATA[key[j]][j] for j in range(N_MODELS)]
     else:
         vals = DATA[key]
-    for j, (b, se, p) in enumerate(vals):
+    for j, record in enumerate(vals):
+        b, se, p = (None, None, None) if record is None else record
         ct(row.cells[j+1], b, se, p)
 
 # Apply borders
@@ -503,7 +513,7 @@ insert_portrait_section(doc)   # return to portrait
 - Variable rows: "(1) Divestiture dummy" | 1.000 | [correlations] — lower triangle only, upper blank
 - Stars: follow the existing project convention. The three-level code and legend below are illustrative and apply only when they match that convention; retain the project's original thresholds and evaluate them using unrounded p-values.
 - Bottom rows: "Mean" and "SD" — same table, no separator
-- Note: italic, 12pt, below table: "Note: Obs. = N,NNN. *** p below 0.010, ** p below 0.050, * p below 0.100."
+- Note: upright, 12pt, below table: "Note: Obs. = N,NNN. *** p below 0.010, ** p below 0.050, * p below 0.100."
 - Font: 12pt throughout; split wide matrices into labeled continuation panels if needed
 - Table width: AUTO-fit to page (use `tbl.style = 'Table Grid'` then clear borders)
 
@@ -565,14 +575,16 @@ def make_corr_desc_table(doc, df, var_names, var_labels, title, note_obs):
 
     FONT_SIZE = Pt(12)
 
-    def cell_text(cell, text, bold=False, italic=False, align=WD_ALIGN_PARAGRAPH.CENTER):
+    def cell_text(cell, text, bold=False, align=WD_ALIGN_PARAGRAPH.CENTER):
         cell.text = ''
-        p = cell.add_paragraph()
+        p = cell.paragraphs[0]
         p.alignment = align
-        r = p.add_run(text)
-        r.font.size = FONT_SIZE
-        r.bold   = bold
-        r.italic = italic
+        if text:
+            r = p.add_run(text)
+            r.font.size = FONT_SIZE
+            r.font.name = "Times New Roman"
+            r.bold = bold
+            r.italic = False
         p.paragraph_format.space_before = Pt(0)
         p.paragraph_format.space_after  = Pt(0)
         p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
@@ -585,8 +597,13 @@ def make_corr_desc_table(doc, df, var_names, var_labels, title, note_obs):
 
     # Variable rows — lower triangle only
     def fmt_corr(r, p):
-        stars = '***' if p < 0.01 else '**' if p < 0.05 else '*' if p < 0.10 else ''
-        return format_3(r) + stars
+        number = format_3(r)
+        if not number:
+            return ""
+        stars = ""
+        if format_3(p):
+            stars = '***' if p < 0.01 else '**' if p < 0.05 else '*' if p < 0.10 else ''
+        return number + stars
 
     for i in range(n_vars):
         row = tbl.rows[i + 1]
@@ -621,7 +638,7 @@ def make_corr_desc_table(doc, df, var_names, var_labels, title, note_obs):
     # Note below table
     p_note = doc.add_paragraph()
     r_note = p_note.add_run(f'Note: Obs. = {note_obs}. *** p below 0.010, ** p below 0.050, * p below 0.100.')
-    r_note.italic = True
+    r_note.italic = False
     r_note.font.size = Pt(12)
     p_note.paragraph_format.space_before = Pt(2)
     p_note.paragraph_format.space_after  = Pt(0)
@@ -695,7 +712,7 @@ Rules (APA 7th edition, SMJ convention):
 
 ### python-docx helper: `inline_stat()`
 
-Appends a formatted inline stat report to an existing paragraph.
+Appends a formatted inline stat report to an existing non-table body paragraph. Omit missing statistics instead of printing empty labels or parentheses; table cells and table notes use upright text.
 
 ```python
 def inline_stat(para, stats_list, terminal_period=True):
@@ -724,13 +741,20 @@ def inline_stat(para, stats_list, terminal_period=True):
             r.font.superscript = True
         return r
 
+    available = []
+    for symbol, value, is_italic in stats_list:
+        text = format_3(value)
+        if text:
+            available.append((symbol, str(value) if symbol in {"N", "df"} else text, is_italic))
+    if not available:
+        return
     run(' (')
-    for i, (symbol, value, is_italic) in enumerate(stats_list):
+    for i, (symbol, text, is_italic) in enumerate(available):
         if i > 0:
             run('; ')
         run(symbol, italic=is_italic)
         run(' = ')
-        run(str(value) if symbol in {"N", "df"} else format_3(value), italic=False)
+        run(text, italic=False)
     run(')')
     if terminal_period:
         run('.')
